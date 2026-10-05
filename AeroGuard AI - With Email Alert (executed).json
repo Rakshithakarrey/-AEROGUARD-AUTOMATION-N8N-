@@ -1,0 +1,535 @@
+{
+  "name": "AeroGuard AI - With Email Alert (executed)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aeroguard-report",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1008,
+        304
+      ],
+      "id": "2f119b72-b166-4de7-8768-050ecaf04d55",
+      "name": "Webhook",
+      "webhookId": "cdaf7f9c-a179-4704-a725-7f47294a5c11"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze this aircraft maintenance report.\n\nAircraft ID: {{ $json.body.aircraft_id }}\nComponent: {{ $json.body.component }}\nReport Date: {{ $json.body.report_date }}\nObservation: {{ $json.body.observation }}\nTechnician: {{ $json.body.technician }}\nLocation: {{ $json.body.location }}\n\nDetermine:\n1. Whether the observation indicates a potential issue.\n2. The severity: LOW, MEDIUM, or HIGH.\n3. A short explanation.\n4. The recommended next action.\n\nIMPORTANT:\nReturn the severity on the first line exactly in this format:\nSEVERITY: LOW\nor\nSEVERITY: MEDIUM\nor\nSEVERITY: HIGH\n\nThen provide the explanation and recommended action.",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -832,
+        304
+      ],
+      "id": "a26afe24-e086-44f8-b009-81940c573a91",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -832,
+        512
+      ],
+      "id": "e08eb4dd-26c8-4b9e-8b58-5a8e787cae60",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "1kvIapWmEz816n3u",
+          "name": "Google Gemini(PaLM) Api account 11"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "let body = {};\ntry { body = $('Webhook').first().json.body || {}; }\ncatch (e) { body = $('Sample Report').first().json.body || {}; }\nconst out = String($input.first().json.output || '');\nconst m = out.match(/SEVERITY:\\s*\\**\\s*(LOW|MEDIUM|HIGH)/i);\nconst severity = m ? m[1].toUpperCase() : 'MEDIUM';\nreturn [{ json: {\n  severity,\n  analysis: out,\n  aircraft_id: body.aircraft_id || '',\n  component: body.component || '',\n  report_date: body.report_date || '',\n  observation: body.observation || '',\n  technician: body.technician || '',\n  location: body.location || ''\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -528,
+        304
+      ],
+      "id": "3b4d3899-a0aa-4b76-885e-3f77fd3cefc8",
+      "name": "Parse Severity"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r-HIGH",
+                    "leftValue": "={{ $json.severity }}",
+                    "rightValue": "HIGH",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "HIGH"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r-MEDIUM",
+                    "leftValue": "={{ $json.severity }}",
+                    "rightValue": "MEDIUM",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "MEDIUM"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r-LOW",
+                    "leftValue": "={{ $json.severity }}",
+                    "rightValue": "LOW",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "LOW"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -288,
+        304
+      ],
+      "id": "c3133dfa-fc13-4782-ba22-0c0cc892bf7d",
+      "name": "Check Severity"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1000000-0000-4000-8000-000000000003-1",
+              "name": "status",
+              "value": "HIGH PRIORITY ALERT",
+              "type": "string"
+            },
+            {
+              "id": "a1000000-0000-4000-8000-000000000003-2",
+              "name": "message",
+              "value": "Aircraft maintenance report requires immediate attention.",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        0,
+        160
+      ],
+      "id": "1bc66e39-1943-4258-a014-476bfc6b3fdf",
+      "name": "HIGH Alert"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1000000-0000-4000-8000-000000000004-1",
+              "name": "status",
+              "value": "MEDIUM PRIORITY",
+              "type": "string"
+            },
+            {
+              "id": "a1000000-0000-4000-8000-000000000004-2",
+              "name": "message",
+              "value": "Report should be reviewed within the scheduled maintenance window.",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        0,
+        320
+      ],
+      "id": "f1212ee7-b5fd-4f39-83d6-65830bbb1c31",
+      "name": "MEDIUM Priority"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1000000-0000-4000-8000-000000000005-1",
+              "name": "status",
+              "value": "LOW PRIORITY",
+              "type": "string"
+            },
+            {
+              "id": "a1000000-0000-4000-8000-000000000005-2",
+              "name": "message",
+              "value": "No immediate action needed. Log for routine monitoring.",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        0,
+        480
+      ],
+      "id": "c2555e33-d8d7-4794-abca-957f4080349d",
+      "name": "LOW Priority"
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nconst clean = s => String(s || '').replace(/[*#`]/g, '').replace(/[^ -~]/g, ' ')\n  .replace(/\\\\/g, '\\\\\\\\').replace(/\\(/g, '\\\\(').replace(/\\)/g, '\\\\)');\n\nconst raw = [\n  'AEROGUARD AI - MAINTENANCE SUPPORT REPORT', '',\n  'Status: ' + d.status,\n  'Message: ' + d.message,\n  'Severity: ' + d.severity, '',\n  'Aircraft ID: ' + d.aircraft_id,\n  'Component: ' + d.component,\n  'Report Date: ' + d.report_date,\n  'Technician: ' + d.technician,\n  'Location: ' + d.location,\n  'Observation: ' + d.observation, '',\n  'AI ANALYSIS', ''\n].concat(String(d.analysis).split('\\n'));\n\nconst lines = [];\nraw.forEach(l => {\n  let t = clean(l);\n  while (t.length > 85) {\n    let cut = t.lastIndexOf(' ', 85);\n    if (cut < 30) cut = 85;\n    lines.push(t.slice(0, cut));\n    t = t.slice(cut).trim();\n  }\n  lines.push(t);\n});\nlines.push('', 'Final decision remains with a human reviewer.');\n\nconst per = 48, pages = [];\nfor (let i = 0; i < lines.length; i += per) pages.push(lines.slice(i, i + per));\n\nconst objs = [];\nobjs[1] = '<< /Type /Catalog /Pages 2 0 R >>';\nobjs[2] = '<< /Type /Pages /Kids [' + pages.map((_, i) => (4 + i * 2) + ' 0 R').join(' ') + '] /Count ' + pages.length + ' >>';\nobjs[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';\npages.forEach((pl, i) => {\n  const pn = 4 + i * 2, cn = 5 + i * 2;\n  let s = 'BT /F1 11 Tf 50 800 Td 15 TL\\n';\n  pl.forEach(l => { s += '(' + l + ') Tj T*\\n'; });\n  s += 'ET';\n  objs[pn] = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents ' + cn + ' 0 R /Resources << /Font << /F1 3 0 R >> >> >>';\n  objs[cn] = '<< /Length ' + s.length + ' >>\\nstream\\n' + s + '\\nendstream';\n});\n\nlet pdf = '%PDF-1.4\\n';\nconst offs = [];\nfor (let i = 1; i < objs.length; i++) {\n  offs[i] = pdf.length;\n  pdf += i + ' 0 obj\\n' + objs[i] + '\\nendobj\\n';\n}\nconst x = pdf.length;\npdf += 'xref\\n0 ' + objs.length + '\\n0000000000 65535 f \\n';\nfor (let i = 1; i < objs.length; i++) pdf += String(offs[i]).padStart(10, '0') + ' 00000 n \\n';\npdf += 'trailer\\n<< /Size ' + objs.length + ' /Root 1 0 R >>\\nstartxref\\n' + x + '\\n%%EOF';\n\nconst fileName = 'AeroGuard_' + (d.aircraft_id || 'report') + '.pdf';\nconst binary = await this.helpers.prepareBinaryData(Buffer.from(pdf, 'latin1'), fileName, 'application/pdf');\nreturn [{ json: d, binary: { data: binary } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        320
+      ],
+      "id": "53df7cd3-73dd-4161-98a8-5c1705f8f420",
+      "name": "Create PDF"
+    },
+    {
+      "parameters": {
+        "respondWith": "binary",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Disposition",
+                "value": "attachment; filename=AeroGuard_Report.pdf"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        512,
+        320
+      ],
+      "id": "4aae7da1-45c8-4ad4-ae07-df7cf1e13f01",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1216,
+        480
+      ],
+      "id": "643825ae-1f9a-4115-ba2e-7016c66769e9",
+      "name": "Click to Test"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "sr-1",
+              "name": "body.aircraft_id",
+              "value": "AF-102",
+              "type": "string"
+            },
+            {
+              "id": "sr-2",
+              "name": "body.component",
+              "value": "Engine",
+              "type": "string"
+            },
+            {
+              "id": "sr-3",
+              "name": "body.report_date",
+              "value": "2026-09-28",
+              "type": "string"
+            },
+            {
+              "id": "sr-4",
+              "name": "body.observation",
+              "value": "Engine fire warning triggered during taxi, immediate shutdown required",
+              "type": "string"
+            },
+            {
+              "id": "sr-5",
+              "name": "body.technician",
+              "value": "R. Kumar",
+              "type": "string"
+            },
+            {
+              "id": "sr-6",
+              "name": "body.location",
+              "value": "Hyderabad",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -1024,
+        480
+      ],
+      "id": "c72278c5-6424-419f-a0d4-b98cd8670d6f",
+      "name": "Sample Report"
+    },
+    {
+      "parameters": {
+        "sendTo": "YOUR_EMAIL@gmail.com",
+        "subject": "=AeroGuard ALERT - {{ $json.aircraft_id }} - {{ $json.status }}",
+        "message": "=<h2>AeroGuard AI - High Priority Maintenance Alert</h2><p><b>Aircraft:</b> {{ $json.aircraft_id }}</p><p><b>Status:</b> {{ $json.status }}</p><p><b>Message:</b> {{ $json.message }}</p><p><b>Component:</b> {{ $json.component }}</p><p><b>Observation:</b> {{ $json.observation }}</p><p><b>Technician:</b> {{ $json.technician }}</p><p><b>Location:</b> {{ $json.location }}</p><hr><p><b>AI Analysis:</b></p><p>{{ $json.analysis }}</p>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "7a4ee32f-7146-4439-9334-ab4e4886d856",
+      "name": "Send Alert Email",
+      "webhookId": "gmail-alert-node",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "z8IldbZe9hGEvBcb",
+          "name": "Gmail account 5"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse Severity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Severity": {
+      "main": [
+        [
+          {
+            "node": "Check Severity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Severity": {
+      "main": [
+        [
+          {
+            "node": "HIGH Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "MEDIUM Priority",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LOW Priority",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HIGH Alert": {
+      "main": [
+        [
+          {
+            "node": "Send Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MEDIUM Priority": {
+      "main": [
+        [
+          {
+            "node": "Create PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LOW Priority": {
+      "main": [
+        [
+          {
+            "node": "Create PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create PDF": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Click to Test": {
+      "main": [
+        [
+          {
+            "node": "Sample Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sample Report": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Alert Email": {
+      "main": [
+        [
+          {
+            "node": "Create PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "e2058e8b-6c7d-4409-afb7-91213d5d273f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4eeff95ae5bfd47c90294ff443960ae0fab09e969254085d1b28902da9078d2b"
+  },
+  "nodeGroups": [],
+  "id": "OBWol9K1liOsR2ff",
+  "tags": []
+}
